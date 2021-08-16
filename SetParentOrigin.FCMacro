@@ -1,0 +1,52 @@
+def setParentOrigin(name, dummy, x, y, z=None): 
+  # 'path846', 'Vertex8',128.999,-92.5401,0
+  if z is None:
+    name = name.split('.')[0]   # "path846.Vertex8" form seen
+    (x, y, z) = (dummy, x, y)
+  obj = App.ActiveDocument.getObject(name)
+  if not obj:
+    print("ERROR: cannot move parent origin, object %s not found in active document." % name)
+    return
+  if not obj.Parents:
+    print("ERROR: cannot move parent origin, %s has no parent. Please place it into a Part first." % name)
+    return
+  parent = obj.Parents[0][0]
+  offset = App.Vector(x, y, z) - parent.Placement.Base
+
+  parent.Placement.move(offset)
+
+  def MoveGroupOrPart(obj, offset):
+    if obj.TypeId == "App::DocumentObjectGroup":
+      for o in obj.Group: 
+        MoveGroupOrPart(o, offset)
+    elif 'Placement' in obj.PropertiesList:
+      obj.Placement.move(offset)
+    else:
+      print("WARN: cannot move: no placement in object %s type %s" % (obj.Name, obj.TypeId))
+
+
+  for sub in parent.getSubObjects():
+    obj = App.ActiveDocument.getObject(sub.split('.')[0])
+    MoveGroupOrPart(obj, -offset)
+  parent.recompute(True)
+  print("Origin of %s set to %f,%f,%f" % (parent.Name, x, y, z))
+
+    
+def setSelectedParentOrigin():
+  s = Gui.Selection.getSelectionEx() 
+  if len(s) != 1:
+    print("ERROR: must have exactly one selected object. %d selected" % len(s))
+    return
+  name = s[0].ObjectName
+  if len(s[0].PickedPoints) < 1:
+    print("ERROR: must have min. one point picked. %d seen" % len(s[0].PickedPoints))
+    return 
+  v = App.Vector()
+  for i in s[0].PickedPoints:
+    v = v + i
+  v = v / len(s[0].PickedPoints) 
+  if len(s[0].PickedPoints) > 1: 
+    print("Using average of %d picked points." % len(s[0].PickedPoints))
+  setParentOrigin(name, "", v.x, v.y, v.z)
+
+setSelectedParentOrigin()
