@@ -1,23 +1,75 @@
-def setParentOrigin(name, dummy, x, y, z=None): 
+# SetParentOrigin.FCMacro
+# (C) 2021 juergen@fabmail.org - distribute under LGPL-2.1
+#
+# 2021-08-15, juergen@fabmail.org	initial draught
+# 2021-08-17, juergen@fabmail.org	added getParentObject() to supported deeper nested structures.
+#
+# Usage:
+#  When importing svg we get multiple path objects.
+#  App paths have their transform handles are at the origin of the svg page, which may be far off the object.
+#  This is inconvenient, when manually aligning with other objects.
+#
+#  To move the transform handles to a specific vertex of an object (e.g. path)
+#   - Pack the object into a part container.
+#   - Click one edge or vertex, then
+#   - call setSelectedParentOrigin()
+#
+# TODO:
+# - Nested structures are not supported correctly.
+#   The offset should be computed with taking grand-parent transformations into account, if any!
+# - This code does not handle rotation.
+#   We need to add and subtract complete transform matrices, not just Base Vectors!
+# - Clicking an Edge uses the clickpoint, instead of midpoint or center.
+#   Steal code from https://wiki.freecadweb.org/Macro_MoveToOrigin#Link
+
+debug = False
+
+def setParentOrigin(name, dummy, x, y, z=None):
+  #  # Gui.Selection.addSelection('Laser_Abluft_2021','Part005','Part012.Cone002.Vertex2',154.5,-96,200.5)
   # 'path846', 'Vertex8',128.999,-92.5401,0
+  if debug:
+    print("setparentOrigin", name, dummy, x, y, z)
   if z is None:
     name = name.split('.')[0]   # "path846.Vertex8" form seen
     (x, y, z) = (dummy, x, y)
   obj = App.ActiveDocument.getObject(name)
+
   if not obj:
     print("ERROR: cannot move parent origin, object %s not found in active document." % name)
     return
-  if not obj.Parents:
+
+  def getParentObject(obj):
+    # "Box005"	has obj.Parents [(<Part object Part007 >, 'Box005.')]
+    # "Cone002" has obj.Parents [(<Part object Part005>, 'Part012.Cone002.')]
+    # "Part007" has obj.Parents []
+    if not obj.Parents:
+      return
+    if obj.Parents[0][1] == obj.Name + '.':
+      # simple case: dotted list of names has exactly myself.
+      return obj.Parents[0][0]
+    path = obj.Parents[0][1].split('.')
+    # expect ['Part012', 'Cone002', '']
+    if len(path) < 3 or path[-1] != '' or path[-2] != obj.Name:
+      print("ERROR: obj('%s').Parents[0][1] = '%s' is strange, expected to end in '.%s.'" % (obj.Name, obj.Parents[0][1], obj.Name))
+      return
+    return App.ActiveDocument.getObject(path[-3])
+
+  parent = getParentObject(obj)
+  if not parent:
     print("ERROR: cannot move parent origin, %s has no parent. Please place it into a Part first." % name)
     return
-  parent = obj.Parents[0][0]
+
   offset = App.Vector(x, y, z) - parent.Placement.Base
+
+  if debug:
+    print("Obj: %s, Parent: %s, offset: %s" % (obj.Name, parent.Name, offset))
+    return
 
   parent.Placement.move(offset)
 
   def MoveGroupOrPart(obj, offset):
     if obj.TypeId == "App::DocumentObjectGroup":
-      for o in obj.Group: 
+      for o in obj.Group:
         MoveGroupOrPart(o, offset)
     elif 'Placement' in obj.PropertiesList:
       obj.Placement.move(offset)
@@ -31,21 +83,21 @@ def setParentOrigin(name, dummy, x, y, z=None):
   parent.recompute(True)
   print("Origin of %s set to %f,%f,%f" % (parent.Name, x, y, z))
 
-    
+
 def setSelectedParentOrigin():
-  s = Gui.Selection.getSelectionEx() 
+  s = Gui.Selection.getSelectionEx()
   if len(s) != 1:
     print("ERROR: must have exactly one selected object. %d selected" % len(s))
     return
   name = s[0].ObjectName
   if len(s[0].PickedPoints) < 1:
     print("ERROR: must have min. one point picked. %d seen" % len(s[0].PickedPoints))
-    return 
+    return
   v = App.Vector()
   for i in s[0].PickedPoints:
     v = v + i
-  v = v / len(s[0].PickedPoints) 
-  if len(s[0].PickedPoints) > 1: 
+  v = v / len(s[0].PickedPoints)
+  if len(s[0].PickedPoints) > 1:
     print("Using average of %d picked points." % len(s[0].PickedPoints))
   setParentOrigin(name, "", v.x, v.y, v.z)
 
