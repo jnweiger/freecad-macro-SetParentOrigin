@@ -1,6 +1,6 @@
 # freecad-macro-SetParentOrigin
 
-1) Copy the file SetParentOrigin.FCMacro to your ~/.FreeCad/Macro/ folder.
+1) Copy the file SetParentOrigin.FCMacro to your ~/.FreeCAD/Macro/ folder.
 2) Start freecad,
 3) open Part or Part Design workbench 
 4) Create a long thin object (cube, Cone, Sketch, Pad, Cut, ...)
